@@ -4,19 +4,15 @@
   "schemaVersion": 1,
   "properties": {
     "urls": {
-      "title": "Target URLs",
+      "title": "List of Website URLs",
       "type": "array",
-      "description": "List of website URLs to scan for chatbots",
+      "description": "List of website URLs to scan for chatbots.",
       "items": {
         "type": "string",
-        "format": "url"
-      }
-    },
-    "notifyMissing": {
-      "title": "Notify If Missing",
-      "type": "boolean",
-      "default": false,
-      "description": "Alert if no chatbot is detected"
+        "format": "uri"
+      },
+      "editor": "textarea"
     }
-  }
+  },
+  "required": ["urls"]
 }
