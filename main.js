@@ -1,41 +1,80 @@
 import { Actor } from 'apify';
-import { CheerioCrawler } from 'crawlee';
+import { Dataset } from 'apify';
+import { chromium } from 'playwright';
+import fs from 'fs/promises';
 
 await Actor.init();
 
 const input = await Actor.getInput();
-console.log('Input received:', input);
+const { websites, category, sheetId, sheetName } = input;
 
-const { urls, notifyMissing } = input;
+if (!websites || !Array.isArray(websites) || websites.length === 0) {
+    throw new Error('Input "websites" must be a non-empty array of URLs.');
+}
+if (!sheetId) throw new Error('Missing "sheetId" in input.');
+if (!sheetName) throw new Error('Missing "sheetName" in input.');
+
+const browser = await chromium.launch();
+const context = await browser.newContext();
+const page = await context.newPage();
 
 const results = [];
 
-const crawler = new CheerioCrawler({
-    maxRequestsPerCrawl: urls.length,
-    requestHandler: async ({ request, $, enqueueLinks, log }) => {
-        const bodyText = $('body').text().toLowerCase();
-        const hasChatbot = bodyText.includes('chat') || bodyText.includes('bot');
-        const screenshot = await Actor.takeScreenshot();
+for (const url of websites) {
+    let chatbotDetected = false;
+    let screenshotUrl = null;
 
-        results.push({
-            url: request.url,
-            hasChatbot,
-            screenshotUrl: screenshot.url
+    try {
+        const response = await page.goto(url, { timeout: 30000 });
+        await page.waitForTimeout(5000); // wait for possible chat widgets to load
+
+        // Check for visible chatbot UI
+        chatbotDetected = await page.evaluate(() => {
+            const selectors = ['iframe', '[class*=chat]', '[id*=chat]', '[class*=bot]', '[id*=bot]'];
+            return selectors.some(selector => {
+                const el = document.querySelector(selector);
+                return el && window.getComputedStyle(el).display !== 'none';
+            });
         });
 
-        if (notifyMissing && !hasChatbot) {
-            await Actor.call('apify/send-mail', {
-                to: 'your-email@example.com',
-                subject: `No chatbot detected on ${request.url}`,
-                text: `No chatbot interface was found on ${request.url}`,
-            });
-        }
-    },
+        const screenshotName = `screenshot-${Date.now()}.png`;
+        const screenshotPath = `./${screenshotName}`;
+        await page.screenshot({ path: screenshotPath });
+
+        // Upload screenshot to Apify Storage and get public URL
+        const storage = await Actor.apifyClient.keyValueStores();
+        const defaultStore = await storage.getOrCreate({ name: 'default' });
+        await defaultStore.setRecord({
+            key: screenshotName,
+            value: await fs.readFile(screenshotPath),
+            contentType: 'image/png',
+        });
+        screenshotUrl = `https://api.apify.com/v2/key-value-stores/${defaultStore.id}/records/${screenshotName}`;
+    } catch (error) {
+        console.error(`Error processing ${url}: ${error.message}`);
+    }
+
+    results.push({
+        url,
+        category,
+        chatbotDetected,
+        screenshotUrl,
+        checkedAt: new Date().toISOString(),
+    });
+}
+
+await browser.close();
+
+// Push results to dataset for Apify dashboard view
+await Dataset.pushData(results);
+
+// Push to Google Sheet
+await Actor.call('apify/send-to-google-sheets', {
+    spreadsheetId: sheetId,
+    sheetName,
+    data: results,
+}, {
+    memoryMbytes: 4096,
 });
 
-await crawler.run(urls);
-
-await Actor.pushData(results);
-
-await Actor.setValue('OUTPUT', results);
 await Actor.exit();
