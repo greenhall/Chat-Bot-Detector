@@ -1,13 +1,16 @@
- {
+{
   "name": "chat-bot-detector",
   "version": "1.0.0",
-  "type": "module",
+  "description": "Detects if websites have a chatbot installed and saves results to Google Sheets.",
+  "main": "main.js",
   "scripts": {
     "start": "node main.js"
   },
   "dependencies": {
-    "apify": "^3.4.4",
+    "apify": "^3.0.0",
+    "puppeteer": "^21.3.8",
     "googleapis": "^133.0.0",
     "google-auth-library": "^9.0.0"
-  }
+  },
+  "type": "module"
 }
