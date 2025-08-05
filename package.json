@@ -1,10 +1,13 @@
-{
-  "name": "chatbot-detector",
+ {
+  "name": "chat-bot-detector",
   "version": "1.0.0",
-  "dependencies": {
-    "apify": "^3.0.0"
-  },
+  "type": "module",
   "scripts": {
     "start": "node main.js"
+  },
+  "dependencies": {
+    "apify": "^3.4.4",
+    "googleapis": "^133.0.0",
+    "google-auth-library": "^9.0.0"
   }
 }
