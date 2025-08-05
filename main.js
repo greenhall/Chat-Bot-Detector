@@ -14,10 +14,11 @@ if (!Array.isArray(websites) || websites.length === 0) {
 const results = [];
 
 for (const url of websites) {
-    const page = await Actor.utils.puppeteer.openPageInNewContext();
+    const page = await Actor.createPuppeteerPage();
+
     try {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(5000); // Wait for UI to render
+        await page.waitForTimeout(5000); // Let UI render
 
         const screenshot = await page.screenshot({ fullPage: true });
         const screenshotBase64 = screenshot.toString('base64');
@@ -27,10 +28,11 @@ for (const url of websites) {
                 '[class*="chat"]',
                 '[id*="chat"]',
                 '[class*="bot"]',
-                '[id*="bot"]'
+                '[id*="bot"]',
+                '[aria-label*="chat"]',
+                '[role*="dialog"]'
             ];
-
-            return selectors.some(selector => !!document.querySelector(selector));
+            return selectors.some(selector => document.querySelector(selector));
         });
 
         results.push({
@@ -40,9 +42,7 @@ for (const url of websites) {
             screenshot: `data:image/png;base64,${screenshotBase64}`
         });
 
-        await page.close();
-    } catch (err) {
-        console.error(`Error processing ${url}:`, err);
+    } catch (error) {
         results.push({
             website: url,
             category,
@@ -52,11 +52,11 @@ for (const url of websites) {
     }
 }
 
-// Authorize Google Sheets API
+// Send results to Google Sheets
 const auth = new JWT({
     email: process.env.GOOGLE_CLIENT_EMAIL,
     key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    scopes: ['https://www.googleapis.com/auth/spreadsheets']
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
 const sheets = google.sheets({ version: 'v4', auth });
@@ -80,5 +80,6 @@ await sheets.spreadsheets.values.append({
     },
 });
 
-console.log('Done. Results saved to Google Sheets.');
+console.log('✅ Done. Results saved to Google Sheets.');
+
 await Actor.exit();
